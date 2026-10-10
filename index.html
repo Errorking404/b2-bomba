@@ -1,0 +1,452 @@
+<!DOCTYPE html>                          <html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OTP BOMBER</title>
+<style>
+  :root{
+    --bg:#111418;
+    --panel:#171b21;
+    --border:#262c35;
+    --text:#e7eaee;
+    --muted:#8993a1;
+    --accent:#4f8ef7;
+    --accent-dim:#2d4a82;
+    --danger:#e2584b;
+    --ok:#3fb27f;
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:24px;
+  }
+  .card{
+    width:100%;
+    max-width:420px;
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:28px;
+  }
+  h1{
+    font-size:18px;
+    font-weight:600;
+    margin:0 0 4px;
+  }
+  .sub{
+    color:var(--muted);
+    font-size:13px;
+    margin:0 0 20px;
+  }
+  .toggle{
+    display:flex;
+    border:1px solid var(--border);
+    border-radius:8px;
+    overflow:hidden;
+    margin-bottom:16px;
+  }
+  .toggle button{
+    flex:1;
+    padding:10px;
+    background:transparent;
+    border:none;
+    color:var(--muted);
+    font-size:14px;
+    cursor:pointer;
+  }
+  .toggle button.active{
+    background:var(--accent-dim);
+    color:#fff;
+  }
+  label{
+    display:block;
+    font-size:12px;
+    color:var(--muted);
+    margin:14px 0 6px;
+  }
+  input{
+    width:100%;
+    padding:10px 12px;
+    background:#0d1014;
+    border:1px solid var(--border);
+    border-radius:7px;
+    color:var(--text);
+    font-size:14px;
+  }
+  input:focus{
+    outline:none;
+    border-color:var(--accent);
+  }
+  .error{
+    color:var(--danger);
+    font-size:12px;
+    min-height:16px;
+    margin-top:4px;
+  }
+  .row{
+    display:flex;
+    gap:12px;
+  }
+  .row > div{flex:1;}
+  button.primary{
+    width:100%;
+    margin-top:20px;
+    padding:11px;
+    background:var(--accent);
+    border:none;
+    border-radius:7px;
+    color:#fff;
+    font-size:14px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  button.primary:disabled{
+    background:#2a3038;
+    color:var(--muted);
+    cursor:not-allowed;
+  }
+  button.secondary{
+    width:100%;
+    margin-top:10px;
+    padding:10px;
+    background:transparent;
+    border:1px solid var(--border);
+    border-radius:7px;
+    color:var(--text);
+    font-size:13px;
+    cursor:pointer;
+  }
+  .status{
+    margin-top:16px;
+    font-size:13px;
+    color:var(--muted);
+    min-height:18px;
+  }
+  .status.ok{color:var(--ok);}
+  .status.err{color:var(--danger);}
+  .progress-wrap{
+    margin-top:12px;
+    display:none;
+  }
+  .progress-track{
+    width:100%;
+    height:6px;
+    background:#0d1014;
+    border-radius:3px;
+    overflow:hidden;
+    border:1px solid var(--border);
+  }
+  .progress-fill{
+    height:100%;
+    width:0%;
+    background:var(--accent);
+    transition:width 1s linear;
+  }
+  .progress-label{
+    display:flex;
+    justify-content:space-between;
+    font-size:11px;
+    color:var(--muted);
+    margin-top:6px;
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1>B-52 BOMBER</h1>
+  <p class="sub">Choose a TARGET, enter TARGET'S DATA, and set a count.</p>
+
+  <div class="toggle">
+    <button type="button" id="tab-email" class="active">Email</button>
+    <button type="button" id="tab-phone">Phone</button>
+  </div>
+
+  <div id="field-email">
+    <label for="email">Email address</label>
+    <input id="email" type="email" placeholder="target@gmail.com" autocomplete="email">
+    <div class="error" id="email-error"></div>
+  </div>
+
+  <div id="field-phone" style="display:none;">
+    <label for="phone">Phone number (ony Pakistan)</label>
+    <input id="phone" type="tel" placeholder="03xxxx" autocomplete="tel">
+    <div class="error" id="phone-error"></div>
+  </div>
+
+  <div class="row">
+    <div>
+      <label for="limit">Max attempts</label>
+      <input id="limit" type="number" min="1" max="10" value="3">
+    </div>
+  </div>
+  <div class="error" id="limit-error"></div>
+
+  <button class="primary" id="send-btn">BOOM</button>
+  <button class="secondary" id="resend-btn" style="display:none;">Resend manually</button>
+
+  <div class="progress-wrap" id="progress-wrap">
+    <div class="progress-track">
+      <div class="progress-fill" id="progress-fill"></div>
+    </div>
+    <div class="progress-label">
+      <span id="progress-text">Waiting for confirmation…</span>
+      <span id="progress-time">60s</span>
+    </div>
+  </div>
+
+  <div class="status" id="status"></div>
+</div>
+
+<script>
+(() => {
+  // ---- CONFIG: swap these for your real endpoints ----
+  // Each entry is the base URL plus the query-param name your API expects,
+  // e.g. https://domain.com?mail=VALUE
+  const API = {
+    email: { base: 'https://email-bmb.vercel.app', param: 'mail' },
+    phone: { base: 'https://otpguy.vercel.app', param: 'num' },
+  };
+  const RETRY_WAIT_MS = 60_000; // 1 minute between auto-retries
+  const TICK_MS = 500;
+
+  // ---- state ----
+  let method = 'email';
+  let attempt = 0;
+  let maxAttempts = 3;
+  let retryTimer = null;
+  let tickTimer = null;
+  let cancelled = false;
+
+  // ---- elements ----
+  const tabEmail = document.getElementById('tab-email');
+  const tabPhone = document.getElementById('tab-phone');
+  const fieldEmail = document.getElementById('field-email');
+  const fieldPhone = document.getElementById('field-phone');
+  const emailInput = document.getElementById('email');
+  const phoneInput = document.getElementById('phone');
+  const emailError = document.getElementById('email-error');
+  const phoneError = document.getElementById('phone-error');
+  const limitInput = document.getElementById('limit');
+  const limitError = document.getElementById('limit-error');
+  const sendBtn = document.getElementById('send-btn');
+  const resendBtn = document.getElementById('resend-btn');
+  const statusEl = document.getElementById('status');
+  const progressWrap = document.getElementById('progress-wrap');
+  const progressFill = document.getElementById('progress-fill');
+  const progressText = document.getElementById('progress-text');
+  const progressTime = document.getElementById('progress-time');
+
+  // ---- method toggle ----
+  tabEmail.addEventListener('click', () => setMethod('email'));
+  tabPhone.addEventListener('click', () => setMethod('phone'));
+
+  function setMethod(m) {
+    if (isRunning()) return; // don't let them swap mid-flow
+    method = m;
+    tabEmail.classList.toggle('active', m === 'email');
+    tabPhone.classList.toggle('active', m === 'phone');
+    fieldEmail.style.display = m === 'email' ? 'block' : 'none';
+    fieldPhone.style.display = m === 'phone' ? 'block' : 'none';
+  }
+
+  function isRunning() {
+    return sendBtn.disabled;
+  }
+
+  // ---- sanitization ----
+  // Email: trim, lowercase, basic RFC-ish shape check. No HTML/script chars allowed.
+  function sanitizeEmail(raw) {
+    const v = raw.trim().toLowerCase();
+    if (/[<>"'`;(){}]/.test(v)) return null;
+    const re = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i;
+    return re.test(v) ? v : null;
+  }
+
+  // Phone: strip everything but digits and a leading +, require 7-15 digits (E.164-ish).
+  function sanitizePhone(raw) {
+    let v = raw.trim();
+    const hasPlus = v.startsWith('+');
+    const digits = v.replace(/\D/g, '');
+    if (digits.length < 7 || digits.length > 15) return null;
+    return (hasPlus ? '+' : '') + digits;
+  }
+
+  function sanitizeLimit(raw) {
+    const n = parseInt(raw, 10);
+    if (!Number.isInteger(n) || n < 1 || n > 10) return null;
+    return n;
+  }
+
+  // ---- UI helpers ----
+  function setStatus(msg, kind) {
+    statusEl.textContent = msg;
+    statusEl.className = 'status' + (kind ? ' ' + kind : '');
+  }
+
+  function showProgress(show) {
+    progressWrap.style.display = show ? 'block' : 'none';
+  }
+
+  function lockForm(locked) {
+    sendBtn.disabled = locked;
+    emailInput.disabled = locked;
+    phoneInput.disabled = locked;
+    limitInput.disabled = locked;
+    tabEmail.disabled = locked;
+    tabPhone.disabled = locked;
+  }
+
+  // ---- the actual API call ----
+  async function sendOtpRequest(destination) {
+    const { base, param } = API[method];
+    const url = `${base}?${param}=${encodeURIComponent(destination)}`;
+
+    const res = await fetch(url, { method: 'GET' });
+
+    if (!res.ok) {
+      let detail = '';
+      try { detail = (await res.json()).message || ''; } catch (_) {}
+      throw new Error(detail || `Request failed (${res.status})`);
+    }
+    return res.json().catch(() => ({}));
+  }
+
+  // ---- countdown / progress bar tied to the real 60s wait ----
+  function runCountdown(totalMs, onDone) {
+    const start = Date.now();
+    showProgress(true);
+    progressText.textContent = 'Waiting for confirmation…';
+
+    tickTimer = setInterval(() => {
+      const elapsed = Date.now() - start;
+      const pct = Math.min(100, (elapsed / totalMs) * 100);
+      progressFill.style.width = pct + '%';
+      const remainingSec = Math.max(0, Math.ceil((totalMs - elapsed) / 1000));
+      progressTime.textContent = remainingSec + 's';
+
+      if (elapsed >= totalMs) {
+        clearInterval(tickTimer);
+        tickTimer = null;
+        if (!cancelled) onDone();
+      }
+    }, TICK_MS);
+  }
+
+  function stopCountdown() {
+    if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
+    if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+    showProgress(false);
+  }
+
+  // ---- main flow ----
+  async function attemptSend(destination) {
+    attempt += 1;
+    setStatus(`Sending code… (attempt ${attempt}/${maxAttempts})`);
+
+    try {
+      await sendOtpRequest(destination);
+      setStatus(`Code sent. Waiting up to 60s for confirmation before retrying.`, 'ok');
+    } catch (err) {
+      setStatus(`Send failed: ${err.message}`, 'err');
+      // still enter the wait window — a transport failure is treated the
+      // same as "no confirmation yet" so the user isn't stuck.
+    }
+
+    if (attempt >= maxAttempts) {
+      finishAttempts();
+      return;
+    }
+
+    runCountdown(RETRY_WAIT_MS, () => {
+      // No external "confirmed" signal is wired up here — plug your own
+      // confirmation check into this callback (e.g. poll a status endpoint,
+      // or call stopFlow() from elsewhere once the OTP is verified).
+      attemptSend(destination);
+    });
+  }
+
+  function finishAttempts() {
+    stopCountdown();
+    lockForm(false);
+    sendBtn.style.display = 'none';
+    resendBtn.style.display = 'block';
+    setStatus(`Max attempts (${maxAttempts}) reached. You can resend manually.`, 'err');
+  }
+
+  // call this externally once you've verified the OTP, to stop any pending retry
+  window.stopOtpFlow = function () {
+    cancelled = true;
+    stopCountdown();
+    lockForm(false);
+    setStatus('Flow stopped.', 'ok');
+  };
+
+  function resetFlow() {
+    cancelled = false;
+    attempt = 0;
+    stopCountdown();
+    sendBtn.style.display = 'block';
+    resendBtn.style.display = 'none';
+  }
+
+  function validateAndGetDestination() {
+    emailError.textContent = '';
+    phoneError.textContent = '';
+    limitError.textContent = '';
+
+    const limit = sanitizeLimit(limitInput.value);
+    if (limit === null) {
+      limitError.textContent = 'Enter a limit between 1 and 10.';
+      return null;
+    }
+    maxAttempts = limit;
+
+    if (method === 'email') {
+      const clean = sanitizeEmail(emailInput.value);
+      if (!clean) {
+        emailError.textContent = 'Enter a valid email address.';
+        return null;
+      }
+      return clean;
+    } else {
+      const clean = sanitizePhone(phoneInput.value);
+      if (!clean) {
+        phoneError.textContent = 'Enter a valid phone number (7–15 digits).';
+        return null;
+      }
+      return clean;
+    }
+  }
+
+  sendBtn.addEventListener('click', () => {
+    const destination = validateAndGetDestination();
+    if (!destination) return;
+
+    resetFlow();
+    lockForm(true);
+    attemptSend(destination);
+  });
+
+  resendBtn.addEventListener('click', () => {
+    const destination = validateAndGetDestination();
+    if (!destination) return;
+
+    resendBtn.style.display = 'none';
+    sendBtn.style.display = 'block';
+    resetFlow();
+    lockForm(true);
+    attemptSend(destination);
+  });
+})();
+</script>
+
+</body>
+  </html>
